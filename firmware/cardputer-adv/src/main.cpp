@@ -30,7 +30,7 @@ void screen(const String &title, const String &body) {
     d.setTextColor(TFT_CYAN);
     d.setTextSize(2);
     d.setCursor(4, 4);
-    d.println("CSI Studio");
+    d.println("CSI Studio v0.2");
     d.setTextSize(1);
     d.setTextColor(TFT_WHITE);
     d.setCursor(4, 34);
@@ -89,6 +89,9 @@ bool startCSI() {
 void setup() {
     auto cfg = M5.config();
     M5Cardputer.begin(cfg, true);
+    // A CSI JSON record is larger than the default 256-byte USB TX ring.
+    Serial.setTxBufferSize(8192);
+    Serial.setTxTimeoutMs(10);
     Serial.begin(115200);
     samples = xQueueCreate(16, sizeof(Frame));
     if (!samples) {
@@ -141,7 +144,7 @@ void loop() {
         }
     }
     Frame f;
-    if (xQueueReceive(samples, &f, 0) == pdTRUE && Serial) {
+    if (xQueueReceive(samples, &f, 0) == pdTRUE) {
         // Build away from the Wi-Fi callback; never block the Wi-Fi task on USB.
         char line[4096];
         int n = snprintf(line, sizeof(line), "{\"rssi\":%d,\"first_word_invalid\":%s,\"data\":[",

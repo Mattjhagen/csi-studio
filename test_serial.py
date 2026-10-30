@@ -3,9 +3,11 @@ import json
 import os
 from pathlib import Path
 import socket
+import signal
 import subprocess
 import sys
 import time
+import termios
 import unittest
 import urllib.request
 
@@ -44,9 +46,13 @@ class SerialIntegration(unittest.TestCase):
             self.assertTrue(result['frames'], 'No frames arrived through the serial reader')
             self.assertEqual(result['frames'][-1]['amplitudes'], [5, 5])
             self.assertEqual(result['frames'][-1]['source'], 'ESP32 serial')
+            self.assertEqual(termios.tcgetattr(slave)[4], termios.B115200)
+            self.assertEqual(termios.tcgetattr(slave)[5], termios.B115200)
         finally:
-            process.terminate()
-            process.communicate(timeout=3)
+            process.send_signal(signal.SIGINT)
+            _, errors = process.communicate(timeout=3)
+            self.assertEqual(process.returncode, 0, errors.decode())
+            self.assertNotIn(b'Traceback', errors)
             os.close(master)
             os.close(slave)
 

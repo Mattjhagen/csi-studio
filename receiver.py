@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Local-only CSI viewer. Python standard library; no installation required."""
-import argparse, collections, csv, io, json, math, random, socket, threading, time, os, subprocess
+import argparse, collections, csv, io, json, math, random, socket, threading, time, os, termios, tty, select
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 lock = threading.Lock()
+stop = threading.Event()
 frames = collections.deque(maxlen=300)
 status = {'accepted': 0, 'rejected': 0, 'source': 'waiting', 'error': None}
 
@@ -48,31 +49,55 @@ def ingest(line, source):
         with lock:
             status['rejected'] += 1
 
-def udp(port):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(('127.0.0.1', port))
-    while True:
-        data, _ = sock.recvfrom(65535)
-        for line in data.decode('utf-8', errors='replace').splitlines():
-            ingest(line, 'UDP')
-
-def serial(port, baud):
+def serial_session(port, baud):
+    fd = None
     try:
-        subprocess.run(['stty', '-f', port, str(baud), 'raw', '-echo'], check=True, capture_output=True)
-        with open(port, 'rb', buffering=0) as stream:
-            while True:
-                line = stream.readline(65536)
-                if not line:
-                    raise OSError('Serial device disconnected')
+        speed = getattr(termios, 'B%d' % baud, None)
+        if speed is None:
+            raise ValueError('Unsupported serial baud rate: %d' % baud)
+        # Configure the same open descriptor used for reading. A separate stty
+        # process can lose its settings when the last descriptor is closed.
+        fd = os.open(port, os.O_RDWR | os.O_NOCTTY)
+        tty.setraw(fd, termios.TCSANOW)
+        attrs = termios.tcgetattr(fd)
+        attrs[2] |= termios.CLOCAL | termios.CREAD
+        attrs[4] = attrs[5] = speed
+        termios.tcsetattr(fd, termios.TCSANOW, attrs)
+        with lock:
+            status['error'] = None
+        pending = b''
+        while not stop.is_set():
+            readable, _, _ = select.select([fd], [], [], .5)
+            if not readable:
+                continue
+            chunk = os.read(fd, 4096)
+            if not chunk:
+                raise OSError('Serial device disconnected')
+            pending += chunk
+            while b'\n' in pending:
+                line, pending = pending.split(b'\n', 1)
                 ingest(line.decode('utf-8', errors='replace'), 'ESP32 serial')
-    except (OSError, subprocess.CalledProcessError) as exc:
+            if len(pending) > 65536:
+                pending = b''
+                with lock:
+                    status['rejected'] += 1
+    except (OSError, ValueError, termios.error) as exc:
         with lock:
             status['error'] = str(exc)
+    finally:
+        if fd is not None:
+            os.close(fd)
+
+def serial(port, baud):
+    while not stop.is_set():
+        serial_session(port, baud)
+        stop.wait(1)  # Reopen the same device after a reboot or USB reconnect.
+
 
 def simulate():
     start = time.monotonic()
     rng = random.Random(32)
-    while True:
+    while not stop.is_set():
         t = time.monotonic()-start
         data = []
         for k in range(64):
@@ -112,25 +137,35 @@ def main():
     if args.simulate and args.serial:
         p.error('Choose simulation or serial input')
     server = ThreadingHTTPServer(('127.0.0.1', args.port), Handler)
+    server.daemon_threads = False
     # Bind UDP before announcing readiness, so conflicts fail visibly.
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(('127.0.0.1', args.udp_port))
+    sock.settimeout(.5)
     def receive():
-        while True:
-            data, _ = sock.recvfrom(65535)
+        while not stop.is_set():
+            try:
+                data, _ = sock.recvfrom(65535)
+            except socket.timeout:
+                continue
             for line in data.decode('utf-8', errors='replace').splitlines():
                 ingest(line, 'UDP')
-    threading.Thread(target=receive, daemon=True).start()
+    workers = [threading.Thread(target=receive)]
     if args.simulate:
-        threading.Thread(target=simulate, daemon=True).start()
+        workers.append(threading.Thread(target=simulate))
     if args.serial:
-        threading.Thread(target=serial, args=(args.serial,args.baud), daemon=True).start()
+        workers.append(threading.Thread(target=serial, args=(args.serial,args.baud)))
+    for worker in workers:
+        worker.start()
     print('Dashboard: http://127.0.0.1:%d | local UDP: %d | Ctrl+C to stop' % (args.port,args.udp_port), flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
+        stop.set()
+        for worker in workers:
+            worker.join()
         server.server_close()
         sock.close()
 

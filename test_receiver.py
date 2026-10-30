@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import socket
+import signal
 import subprocess
 import sys
 import time
@@ -61,8 +62,10 @@ class ReceiverTests(unittest.TestCase):
             with urllib.request.urlopen(base+'/', timeout=.5) as response:
                 self.assertIn(b'Wi-Fi CSI Studio', response.read())
         finally:
-            process.terminate()
-            process.communicate(timeout=3)
+            process.send_signal(signal.SIGINT)
+            _, errors = process.communicate(timeout=3)
+            self.assertEqual(process.returncode, 0, errors.decode())
+            self.assertNotIn(b'Traceback', errors)
 
 
 if __name__ == '__main__':

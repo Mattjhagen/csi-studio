@@ -30,7 +30,7 @@ The page shows sample magnitudes, mean magnitude history, RSSI, record counts, a
 /usr/bin/python3 receiver.py --serial /dev/cu.usbmodemYOUR_DEVICE --baud 115200
 ```
 
-5. Open the same dashboard. It should show ESP32 serial and fresh sample ages. Close other serial monitors first. Boot messages increment the rejected counter; continuous rejections suggest mismatched baud or CSV format. Device errors appear on the dashboard; reconnect and restart after a disconnect.
+5. Open the same dashboard. It should show ESP32 serial and fresh sample ages. Close other serial monitors first. Boot messages increment the rejected counter; continuous rejections suggest mismatched baud or CSV format. Device errors appear on the dashboard; the receiver retries the same serial device once per second after a disconnect. If its device path changes, restart with the new path.
 
 ## Accepted records
 
@@ -58,7 +58,7 @@ The tests start temporary receivers on free local ports; no board or running sim
 /usr/bin/python3 -m unittest discover -s . -v
 ```
 
-Five tests cover JSON amplitudes, CSV invalid-byte handling, invalid records, live simulation/UDP/HTTP delivery, and the Mac serial path through a pseudo-terminal. The UDP test deliberately sends one malformed record to its temporary receiver. The browser was checked with live simulated values. Real USB serial acquisition remains unverified until the ESP32 is connected.
+Five tests cover JSON amplitudes, CSV invalid-byte handling, invalid records, live simulation/UDP/HTTP delivery, and the Mac serial path through a pseudo-terminal, baud-rate configuration, and clean shutdown. The UDP test deliberately sends one malformed record to its temporary receiver. The browser was checked with live simulated values. Real USB serial acquisition remains unverified until the ESP32 is connected.
 
 ## CSI versus monitor mode
 

@@ -34,6 +34,10 @@ After choosing a direct flash installation:
 pio run -d firmware/cardputer-adv -t upload --upload-port /dev/cu.usbmodemYOUR_DEVICE
 ```
 
+## USB streaming (v0.2)
+
+The v0.2 build uses an 8 KB USB TX buffer and a bounded write timeout, and continues attempting writes when the native USB connection indicator temporarily reports disconnected. This addresses short streams that stop after a few records.
+
 ## Use
 
 1. Reset the Cardputer after flashing if it remains in download mode.
