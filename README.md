@@ -4,7 +4,7 @@ Cardputer-Adv firmware is now included in [`firmware/cardputer-adv`](firmware/ca
 
 ## Mac dashboard
 
-A dependency-free Python receiver and browser dashboard. Built and verified on an Apple M4 MacBook Air, macOS 27.0.1, with /usr/bin/python3 (3.9.6). No packages, drivers, system settings, or firmware were installed. The existing Homebrew Node installation fails due to a missing simdjson library; this project does not use Node.
+A dependency-free Python receiver and browser dashboard. Built and verified on an Apple M4 MacBook Air, macOS 27.0.1, with /usr/bin/python3 (3.9.6). The Mac dashboard requires no extra Python packages or drivers. Cardputer-Adv firmware is built with an isolated PlatformIO environment and installed through M5Launcher from microSD. The existing Homebrew Node installation fails due to a missing simdjson library; this project does not use Node.
 
 ## Start the simulation
 
@@ -21,9 +21,9 @@ The page shows sample magnitudes, mean magnitude history, RSSI, record counts, a
 
 ## Connect the ESP32 later
 
-1. Connect the board with a data-capable USB cable. No obvious ESP32 port was present during setup. The board model, current firmware, USB driver needs, and baud rate are not yet known.
+1. Connect the board with a data-capable USB cable. No obvious ESP32 port was present during setup. For the Cardputer-Adv, use the included firmware guide and its native USB serial port at 115200 baud. Other boards may require different firmware or USB drivers.
 2. List devices with `ls /dev/cu.*`. Look for a newly appearing usbmodem, usbserial, SLAB_USBtoUART, or wchusbserial device. Do not use Bluetooth or unrelated devices. Some boards need a vendor USB driver; determine the board's USB bridge before installing one.
-3. The board must run CSI-capable firmware, not just a Wi-Fi scanner. Espressif's `esp-csi/examples/get-started/csi_recv_router` is a possible future firmware route: the receiver joins an AP and generates ping traffic to obtain CSI. Choose the exact firmware and ESP-IDF version after identifying the board. No firmware toolchain or flashing has been performed.
+3. The board must run CSI-capable firmware, not just a Wi-Fi scanner. Espressif's `esp-csi/examples/get-started/csi_recv_router` is a possible future firmware route: the receiver joins an AP and generates ping traffic to obtain CSI. Choose the exact firmware and ESP-IDF version after identifying the board. The included Cardputer-Adv firmware has its own build and M5Launcher installation instructions above.
 4. Stop the simulation with Control-C. Start the receiver, replacing the example device path with the actual new port and matching the firmware's baud rate:
 
 ```sh
