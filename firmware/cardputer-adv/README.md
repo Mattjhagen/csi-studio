@@ -12,6 +12,10 @@ pio run -d firmware/cardputer-adv
 
 Dependencies and compiler downloads are handled by PlatformIO. Platform espressif32 8.0.0 uses the newer Arduino ESP32 framework already available on this Mac; USB flags and board settings follow M5Stack's Cardputer-Adv configuration. Build artifacts live in the ignored `.pio` directory.
 
+## Install with M5Launcher
+
+To keep M5Launcher, copy the compiled `.pio/build/cardputer-adv/firmware.bin` to the microSD card and install it through Launcher's SD browser. This is an app-only image. It needs a slot at least as large as the binary; allow for Launcher's partition alignment. Inspect any proposed removal or repartition before proceeding. This route does not use the direct PlatformIO upload command below.
+
 ## Preserve existing firmware first
 
 Do not flash over M5Launcher or another app until you have chosen how to preserve it. A full 8 MB flash backup captures the existing flash layout and settings; it does not back up the microSD card. Backups may contain Wi-Fi credentials and other private settings: keep them local and out of Git. This repo ignores `backups/` and `*.flash-backup.bin`.
