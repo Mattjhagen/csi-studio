@@ -1,4 +1,8 @@
-# ESP32 CSI Studio for this Mac
+# CSI Studio
+
+Cardputer-Adv firmware is now included in [`firmware/cardputer-adv`](firmware/cardputer-adv/README.md). It provides keyboard Wi-Fi setup, on-device status, and USB CSI streaming. See that guide for build, backup, and flashing steps.
+
+## Mac dashboard
 
 A dependency-free Python receiver and browser dashboard. Built and verified on an Apple M4 MacBook Air, macOS 27.0.1, with /usr/bin/python3 (3.9.6). No packages, drivers, system settings, or firmware were installed. The existing Homebrew Node installation fails due to a missing simdjson library; this project does not use Node.
 
@@ -48,13 +52,13 @@ The receiver always listens on 127.0.0.1:5500 for the same records, one or more 
 
 ## Verification
 
-With the simulation running on the default ports:
+The tests start temporary receivers on free local ports; no board or running simulator is required:
 
 ```sh
 /usr/bin/python3 -m unittest discover -s . -v
 ```
 
-Four tests cover JSON amplitudes, CSV invalid-byte handling, invalid records, and live simulation/UDP/HTTP delivery. The live test deliberately sends one malformed record, increasing rejected by one. The browser was checked with live simulated values. Real USB serial acquisition remains unverified until the ESP32 is connected.
+Five tests cover JSON amplitudes, CSV invalid-byte handling, invalid records, live simulation/UDP/HTTP delivery, and the Mac serial path through a pseudo-terminal. The UDP test deliberately sends one malformed record to its temporary receiver. The browser was checked with live simulated values. Real USB serial acquisition remains unverified until the ESP32 is connected.
 
 ## CSI versus monitor mode
 

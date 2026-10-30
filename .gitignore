@@ -5,3 +5,8 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+# Firmware builds and hardware backups
+.pio/
+backups/
+*.flash-backup.bin
