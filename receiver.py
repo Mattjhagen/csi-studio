@@ -7,7 +7,7 @@ from pathlib import Path
 lock = threading.Lock()
 stop = threading.Event()
 frames = collections.deque(maxlen=300)
-status = {'accepted': 0, 'rejected': 0, 'source': 'waiting', 'error': None}
+status = {'accepted': 0, 'rejected': 0, 'source': 'waiting', 'error': None, 'device': None}
 
 def parse(line):
     line = line.strip()
@@ -40,6 +40,15 @@ def parse(line):
 
 def ingest(line, source):
     try:
+        if source == 'ESP32 serial' and line.lstrip().startswith('{'):
+            obj = json.loads(line)
+            if isinstance(obj, dict) and obj.get('type') == 'status':
+                allowed = ('version', 'ip', 'ping_sent', 'ping_replies', 'csi_callbacks', 'csi_queued', 'usb_sent', 'dropped')
+                device = {key: obj[key] for key in allowed if key in obj}
+                device['time'] = time.time()
+                with lock:
+                    status['device'] = device
+                return
         frame = parse(line)
         frame['source'] = source
         with lock:

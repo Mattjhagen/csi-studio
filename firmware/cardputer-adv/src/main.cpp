@@ -3,6 +3,7 @@
 #include <atomic>
 #include <M5Cardputer.h>
 #include <WiFi.h>
+#include <WiFiUdp.h>
 #include <esp_wifi.h>
 #include <ping/ping_sock.h>
 #include <freertos/FreeRTOS.h>
@@ -16,7 +17,8 @@ struct Frame {
 };
 QueueHandle_t samples;
 esp_ping_handle_t pingSession = nullptr;
-uint8_t apMac[6] = {};
+WiFiUDP trafficSink;
+std::atomic<uint32_t> callbacksSeen{0}, queued{0};
 uint32_t emitted = 0;
 std::atomic<uint32_t> dropped{0};
 String ssid, password, input;
@@ -30,7 +32,7 @@ void screen(const String &title, const String &body) {
     d.setTextColor(TFT_CYAN);
     d.setTextSize(2);
     d.setCursor(4, 4);
-    d.println("CSI Studio v0.2");
+    d.println("CSI Studio v0.3");
     d.setTextSize(1);
     d.setTextColor(TFT_WHITE);
     d.setCursor(4, 34);
@@ -50,10 +52,12 @@ void drawInput() {
 void onCSI(void *, wifi_csi_info_t *info) {
     static uint32_t last = 0;
     uint32_t now = micros();
-    if (!info || !info->buf || memcmp(info->mac, apMac, 6) ||
+    ++callbacksSeen;
+    if (!info || !info->buf ||
         info->len > 612 || info->len < 4 || (info->len % 2) ||
         uint32_t(now - last) < 50000) return;
     last = now;
+    ++queued;
     Frame f;
     f.len = info->len;
     f.rssi = info->rx_ctrl.rssi;
@@ -64,7 +68,8 @@ void onCSI(void *, wifi_csi_info_t *info) {
 bool startCSI() {
     wifi_ap_record_t ap;
     if (esp_wifi_sta_get_ap_info(&ap) != ESP_OK) return false;
-    memcpy(apMac, ap.bssid, 6);
+    // Station mode receives downlink traffic from the associated AP.
+    // Avoid retaining a stale BSSID filter if a mesh network roams the station.
     wifi_csi_config_t cfg = {};
     cfg.lltf_en = true;
     cfg.htltf_en = false;
@@ -77,7 +82,7 @@ bool startCSI() {
         esp_wifi_set_csi(true) != ESP_OK) return false;
     esp_ping_config_t ping = ESP_PING_DEFAULT_CONFIG();
     ping.count = 0;
-    ping.interval_ms = 50;
+    ping.interval_ms = 100;
     ping.timeout_ms = 500;
     ping.data_size = 16;
     ping.target_addr.type = IPADDR_TYPE_V4;
@@ -134,6 +139,7 @@ void loop() {
         if (WiFi.status() == WL_CONNECTED) {
             if (startCSI()) {
                 stage = STREAMING;
+                trafficSink.begin(5501);
             } else {
                 stage = FAILED;
                 screen("CSI setup failed", "Press reset to retry");
@@ -142,6 +148,11 @@ void loop() {
             stage = FAILED;
             screen("Wi-Fi connection failed", "Check name/password and 2.4 GHz\nPress reset to retry");
         }
+    }
+    int packetSize = trafficSink.parsePacket();
+    if (packetSize > 0) {
+        uint8_t discard[256];
+        while (trafficSink.available()) trafficSink.read(discard, sizeof(discard));
     }
     Frame f;
     if (xQueueReceive(samples, &f, 0) == pdTRUE) {
@@ -161,9 +172,17 @@ void loop() {
         if (WiFi.status() != WL_CONNECTED) {
             screen("Wi-Fi disconnected", "Waiting for reconnection...\nReset if it does not recover");
         } else {
-            screen("LIVE CSI -> USB", "Channel: " + String(WiFi.channel()) +
-                   "  RSSI: " + String(WiFi.RSSI()) + " dBm\nSent: " + String(emitted) +
-                   "  Dropped: " + String(dropped.load()) + "\nOpen CSI Studio on your Mac\nReset: change network");
+            uint32_t requests = 0, replies = 0;
+            esp_ping_get_profile(pingSession, ESP_PING_PROF_REQUEST, &requests, sizeof(requests));
+            esp_ping_get_profile(pingSession, ESP_PING_PROF_REPLY, &replies, sizeof(replies));
+            String ip = WiFi.localIP().toString();
+            Serial.printf("{\"type\":\"status\",\"version\":\"0.3\",\"ip\":\"%s\",\"ping_sent\":%lu,\"ping_replies\":%lu,\"csi_callbacks\":%lu,\"csi_queued\":%lu,\"usb_sent\":%lu,\"dropped\":%lu}\n",
+                          ip.c_str(), (unsigned long)requests, (unsigned long)replies,
+                          (unsigned long)callbacksSeen.load(), (unsigned long)queued.load(),
+                          (unsigned long)emitted, (unsigned long)dropped.load());
+            screen("LIVE CSI -> USB", "IP: " + ip + "\nPing TX/RX: " + String(requests) + "/" + String(replies) +
+                   "\nCSI callbacks: " + String(callbacksSeen.load()) + "\nSent: " + String(emitted) + " Drop: " + String(dropped.load()) + "\nChannel: " + String(WiFi.channel()) +
+                   "  RSSI: " + String(WiFi.RSSI()) + " dBm");
         }
     }
     delay(2);

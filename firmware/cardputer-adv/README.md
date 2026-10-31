@@ -36,7 +36,7 @@ pio run -d firmware/cardputer-adv -t upload --upload-port /dev/cu.usbmodemYOUR_D
 
 ## USB streaming (v0.2)
 
-The v0.2 build uses an 8 KB USB TX buffer and a bounded write timeout, and continues attempting writes when the native USB connection indicator temporarily reports disconnected. This addresses short streams that stop after a few records.
+The v0.2 build uses an 8 KB USB TX buffer and a bounded write timeout, and continues attempting writes when the native USB connection indicator temporarily reports disconnected. These changes reduce USB buffering pressure. They did not by themselves resolve the observed capture pause; v0.3 adds diagnostics to distinguish capture, ping, and USB behavior.
 
 ## Use
 
@@ -52,7 +52,7 @@ python3 receiver.py --serial /dev/cu.usbmodemYOUR_DEVICE --baud 115200
 
 Stop the simulator and close other serial monitors first. The firmware does not wait for a Mac connection to show its UI. A reset changes the network; a connection timeout asks for reset and re-entry.
 
-The firmware captures LLTF CSI from the associated access point and generates gateway ping traffic at a nominal 20 Hz. Actual record rate depends on router replies, radio traffic, and USB availability; callbacks are throttled to at most 20 Hz. A bounded FreeRTOS queue keeps USB work outside the Wi-Fi callback. Queue drops are shown on the device. Router isolation or ICMP filtering may reduce useful traffic. Wi-Fi reconnection may require a reset, especially when the AP BSSID or gateway changes.
+The firmware captures LLTF CSI from the associated access point and generates gateway ping traffic at a nominal 10 Hz. Actual record rate depends on router replies, radio traffic, and USB availability; callbacks are throttled to at most 20 Hz. A bounded FreeRTOS queue keeps USB work outside the Wi-Fi callback. Queue drops are shown on the device. Router isolation or ICMP filtering may reduce useful traffic. Wi-Fi reconnection may require a reset, especially when the AP BSSID or gateway changes.
 
 This is raw CSI acquisition, without a calibrated motion/presence classifier. Sample indices are not calibrated frequency labels. Firmware must be built and then tested on the physical Adv; a successful compile alone is not hardware validation.
 
@@ -60,3 +60,11 @@ Official references:
 - https://docs.m5stack.com/en/core/Cardputer-Adv
 - https://github.com/m5stack/M5Cardputer
 - https://github.com/espressif/esp-csi/tree/master/examples/get-started/csi_recv_router
+
+## Capture diagnostics and Mac traffic (v0.3)
+
+v0.3 adds a once-per-second status record with device IP, ping requests/replies, CSI callback count, queued CSI count, USB frame count, and drops. These records appear separately in the Mac dashboard and do not count as malformed CSI. Station-mode CSI is no longer filtered against a BSSID cached at initial connection, so an AP roam cannot leave that filter stale.
+
+The device also drains UDP port 5501. If router ping replies do not generate a steady stream, run `python3 traffic.py` on the Mac after the receiver has read a recent v0.3 status. This sends 10 small unicast UDP packets per second to the device's reported private LAN address; the AP's downlink transmissions provide real CSI input. No Mac network listener or firewall change is needed. Stop the traffic process with Control-C. Use `--target PRIVATE_IP` to choose the Cardputer explicitly and `--rate 1` through `--rate 50` to select the traffic rate.
+
+This mode needs the Mac and Cardputer on a LAN where peer traffic is allowed. Guest/client isolation may block it. The simulator remains a separate input mode and is not used for physical-device validation.

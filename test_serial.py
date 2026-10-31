@@ -32,7 +32,7 @@ class SerialIntegration(unittest.TestCase):
             deadline = time.monotonic() + 5
             result = None
             while time.monotonic() < deadline:
-                os.write(master, b'{"data":[3,4,0,5],"rssi":-42}\n')
+                os.write(master, b'{"type":"status","version":"0.3","ip":"192.168.0.50","ping_sent":10,"ping_replies":10,"csi_callbacks":10}\n{"data":[3,4,0,5],"rssi":-42}\n')
                 try:
                     with urllib.request.urlopen('http://127.0.0.1:%d/api/frames' % port, timeout=.3) as response:
                         result = json.load(response)
@@ -46,6 +46,8 @@ class SerialIntegration(unittest.TestCase):
             self.assertTrue(result['frames'], 'No frames arrived through the serial reader')
             self.assertEqual(result['frames'][-1]['amplitudes'], [5, 5])
             self.assertEqual(result['frames'][-1]['source'], 'ESP32 serial')
+            self.assertEqual(result['status']['device']['ip'], '192.168.0.50')
+            self.assertEqual(result['status']['rejected'], 0)
             self.assertEqual(termios.tcgetattr(slave)[4], termios.B115200)
             self.assertEqual(termios.tcgetattr(slave)[5], termios.B115200)
         finally:

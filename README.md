@@ -58,7 +58,7 @@ The tests start temporary receivers on free local ports; no board or running sim
 /usr/bin/python3 -m unittest discover -s . -v
 ```
 
-Five tests cover JSON amplitudes, CSV invalid-byte handling, invalid records, live simulation/UDP/HTTP delivery, and the Mac serial path through a pseudo-terminal, baud-rate configuration, and clean shutdown. The UDP test deliberately sends one malformed record to its temporary receiver. The browser was checked with live simulated values. Real USB serial acquisition remains unverified until the ESP32 is connected.
+Five tests cover JSON amplitudes, CSV invalid-byte handling, invalid records, live simulation/UDP/HTTP delivery, and the Mac serial path through a pseudo-terminal, baud-rate configuration, and clean shutdown. The UDP test deliberately sends one malformed record to its temporary receiver. The browser was checked with live simulated values. Real Cardputer-Adv CSI records and USB status updates have been received. Sustained streaming is still being validated; the current network test requires both devices on a LAN that allows peer traffic.
 
 ## CSI versus monitor mode
 
